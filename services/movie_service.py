@@ -1,5 +1,5 @@
 from typing import List, Dict, Any
-
+from functools import lru_cache
 import requests
 
 from config import TMDB_API_KEY
@@ -11,147 +11,89 @@ HEADERS = {
     "accept": "application/json"
 }
 
+def add_poster_url(item: Dict[str, Any]) -> None:
+    """为项目添加海报URL"""
+    if item['poster_path']:
+        item['poster_url'] = f"{IMAGE_BASE_URL}{item['poster_path']}"
+    else:
+        item['poster_url'] = None
 
+def make_api_request(url: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    """发送API请求并返回JSON数据"""
+    response = requests.get(url, headers=HEADERS, params=params)
+    response.raise_for_status()
+    return response.json()
+
+@lru_cache(maxsize=32)
 def get_trending_movies(time_window: str = "day") -> List[Dict[str, Any]]:
-    """
-    Get trending movies for the day or week.
-
-    :param time_window: 'day' or 'week'
-    :return: List of trending movies
-    """
+    """获取热门电影"""
     url = f"{BASE_URL}/trending/movie/{time_window}"
     params = {"language": "zh-CN"}
-    response = requests.get(url, headers=HEADERS, params=params)
-    response.raise_for_status()
-    data = response.json()
+    data = make_api_request(url, params)
     results = data.get("results", [])
     for movie in results:
-        if movie['poster_path']:
-            movie['poster_url'] = f"{IMAGE_BASE_URL}{movie['poster_path']}"
-        else:
-            movie['poster_url'] = None
-    return data.get("results", [])
-
-
-def search_movies(query: str) -> List[Dict[str, Any]]:
-    """
-    Search for movies based on a query string.
-
-    :param query: Search query
-    :return: List of movie search results
-    """
-    url = f"{BASE_URL}/search/movie"
-    params = {"query": query, "language": "zh-CN", "page": 1}
-    response = requests.get(url, headers=HEADERS, params=params)
-    response.raise_for_status()
-    data = response.json()
-    results = data.get("results", [])
-    for movie in results:
-        if movie['poster_path']:
-            movie['poster_url'] = f"{IMAGE_BASE_URL}{movie['poster_path']}"
-        else:
-            movie['poster_url'] = None
+        add_poster_url(movie)
     return results
 
+@lru_cache(maxsize=32)
+def search_movies(query: str) -> List[Dict[str, Any]]:
+    """搜索电影"""
+    url = f"{BASE_URL}/search/movie"
+    params = {"query": query, "language": "zh-CN", "page": 1}
+    data = make_api_request(url, params)
+    results = data.get("results", [])
+    for movie in results:
+        add_poster_url(movie)
+    return results
 
+@lru_cache(maxsize=128)
 def get_movie_details(movie_id: int) -> Dict[str, Any]:
-    """
-    Get detailed information about a specific movie.
-
-    :param movie_id: TMDB movie ID
-    :return: Dictionary containing movie details
-    """
+    """获取电影详情"""
     url = f"{BASE_URL}/movie/{movie_id}"
     params = {"language": "zh-CN", "append_to_response": "credits,reviews"}
-    response = requests.get(url, headers=HEADERS, params=params)
-    response.raise_for_status()
-    movie = response.json()
-    if movie['poster_path']:
-        movie['poster_url'] = f"{IMAGE_BASE_URL}{movie['poster_path']}"
-    else:
-        movie['poster_url'] = None
+    movie = make_api_request(url, params)
+    add_poster_url(movie)
     return movie
 
-
+@lru_cache(maxsize=32)
 def get_trending_tv_shows(time_window: str = "day") -> List[Dict[str, Any]]:
-    """
-    Get trending TV shows for the day or week.
-
-    :param time_window: 'day' or 'week'
-    :return: List of trending TV shows
-    """
+    """获取热门电视节目"""
     url = f"{BASE_URL}/trending/tv/{time_window}"
     params = {"language": "zh-CN"}
-    response = requests.get(url, headers=HEADERS, params=params)
-    response.raise_for_status()
-    data = response.json()
+    data = make_api_request(url, params)
     results = data.get("results", [])
-    for movie in results:
-        if movie['poster_path']:
-            movie['poster_url'] = f"{IMAGE_BASE_URL}{movie['poster_path']}"
-        else:
-            movie['poster_url'] = None
-    return data.get("results", [])
+    for show in results:
+        add_poster_url(show)
+    return results
 
-
+@lru_cache(maxsize=32)
 def search_tv_shows(query: str) -> List[Dict[str, Any]]:
-    """
-    Search for TV shows based on a query string.
-
-    :param query: Search query
-    :return: List of TV show search results
-    """
+    """搜索电视节目"""
     url = f"{BASE_URL}/search/tv"
     params = {"query": query, "language": "zh-CN", "page": 1}
-    response = requests.get(url, headers=HEADERS, params=params)
-    response.raise_for_status()
-    data = response.json()
+    data = make_api_request(url, params)
     results = data.get("results", [])
-    for movie in results:
-        if movie['poster_path']:
-            movie['poster_url'] = f"{IMAGE_BASE_URL}{movie['poster_path']}"
-        else:
-            movie['poster_url'] = None
-    return data.get("results", [])
+    for show in results:
+        add_poster_url(show)
+    return results
 
-
+@lru_cache(maxsize=128)
 def get_tv_show_details(tv_id: int) -> Dict[str, Any]:
-    """
-    Get detailed information about a specific TV show.
-
-    :param tv_id: TMDB TV show ID
-    :return: Dictionary containing TV show details
-    """
+    """获取电视节目详情"""
     url = f"{BASE_URL}/tv/{tv_id}"
     params = {"language": "zh-CN"}
-    response = requests.get(url, headers=HEADERS, params=params)
-    response.raise_for_status()
-    movie = response.json()
-    if movie['poster_path']:
-        movie['poster_url'] = f"{IMAGE_BASE_URL}{movie['poster_path']}"
-    else:
-        movie['poster_url'] = None
-    return movie
-
+    show = make_api_request(url, params)
+    add_poster_url(show)
+    return show
 
 def get_trending_items(time_window: str = "day") -> List[Dict[str, Any]]:
-    """
-    Get trending movies and TV shows for the day or week.
-
-    :param time_window: 'day' or 'week'
-    :return: List of trending movies and TV shows
-    """
+    """获取热门电影和电视节目"""
     movies = get_trending_movies(time_window)
     tv_shows = get_trending_tv_shows(time_window)
 
-    # 组合 movies 和 tv_shows
     trending_items = movies + tv_shows
 
-    # 添加 item_type 字段以便区分是电影还是电视剧
     for item in trending_items:
-        if 'title' in item:
-            item['item_type'] = 'movie'
-        elif 'name' in item:
-            item['item_type'] = 'tv'
+        item['item_type'] = 'movie' if 'title' in item else 'tv'
 
     return trending_items

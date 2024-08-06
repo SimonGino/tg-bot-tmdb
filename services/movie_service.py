@@ -24,6 +24,12 @@ def get_trending_movies(time_window: str = "day") -> List[Dict[str, Any]]:
     response = requests.get(url, headers=HEADERS, params=params)
     response.raise_for_status()
     data = response.json()
+    results = data.get("results", [])
+    for movie in results:
+        if movie['poster_path']:
+            movie['poster_url'] = f"{IMAGE_BASE_URL}{movie['poster_path']}"
+        else:
+            movie['poster_url'] = None
     return data.get("results", [])
 
 
@@ -79,6 +85,12 @@ def get_trending_tv_shows(time_window: str = "day") -> List[Dict[str, Any]]:
     response = requests.get(url, headers=HEADERS, params=params)
     response.raise_for_status()
     data = response.json()
+    results = data.get("results", [])
+    for movie in results:
+        if movie['poster_path']:
+            movie['poster_url'] = f"{IMAGE_BASE_URL}{movie['poster_path']}"
+        else:
+            movie['poster_url'] = None
     return data.get("results", [])
 
 

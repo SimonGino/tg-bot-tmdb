@@ -1,10 +1,11 @@
 import logging
+import datetime
 
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler
 
 from bot.handlers import start, help_command, search, view_watchlist, \
     remove_from_watchlist_handler, button, \
-    trending_command
+    trending_command, send_weekly_trending
 from config import TELEGRAM_BOT_TOKEN
 
 # Enable logging
@@ -25,6 +26,11 @@ def main() -> None:
     application.add_handler(CommandHandler("remove", remove_from_watchlist_handler))
     application.add_handler(CommandHandler('trending', trending_command))
     application.add_handler(CallbackQueryHandler(button))
+    # Add job queue for scheduled tasks
+    job_queue = application.job_queue
+    # Schedule the weekly task to run every Sunday at 10:00 AM
+    job_queue.run_daily(send_weekly_trending, days=(6,), time=datetime.time(10, 0, 0))
+    # job_queue.run_repeating(send_weekly_trending, interval=10, first=0)
     # Start the Bot
     application.run_polling()
 

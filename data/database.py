@@ -21,6 +21,12 @@ class WatchlistItem(Base):
     title = Column(String, nullable=False)
     added_date = Column(DateTime, default=datetime.utcnow)
 
+class Subscriber(Base):
+    __tablename__ = 'subscribers'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, nullable=False, unique=True)
+
 
 Base.metadata.create_all(engine)
 
@@ -88,3 +94,28 @@ def remove_from_watchlist(user_id: int, item_id: int) -> bool:
         return True
     session.close()
     return False
+
+def add_subscriber(user_id: int) -> None:
+    """
+    Add a user to the subscribers list if not already subscribed.
+
+    :param user_id: Telegram user ID
+    """
+    session = Session()
+    existing_subscriber = session.query(Subscriber).filter_by(user_id=user_id).first()
+    if not existing_subscriber:
+        subscriber = Subscriber(user_id=user_id)
+        session.add(subscriber)
+        session.commit()
+    session.close()
+
+def get_all_subscribers() -> list:
+    """
+    Get all subscribers' user IDs.
+
+    :return: List of user IDs
+    """
+    session = Session()
+    subscribers = session.query(Subscriber).all()
+    session.close()
+    return [subscriber.user_id for subscriber in subscribers]

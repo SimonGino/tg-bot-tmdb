@@ -3,7 +3,8 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
-from data.database import add_to_watchlist, get_watchlist, remove_from_watchlist, is_in_watchlist
+from data.database import add_to_watchlist, get_watchlist, remove_from_watchlist, is_in_watchlist, get_all_subscribers, \
+    add_subscriber
 from services.movie_service import search_movies, search_tv_shows, get_movie_details, get_tv_show_details, \
     get_trending_items
 
@@ -14,6 +15,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_html(
         f"你好 {user.mention_html()}！我是你的电影和电视剧机器人。使用 /help 查看我能做什么。"
     )
+    # 添加用户到订阅者列表
+    add_subscriber(user.id)
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /help is issued."""
@@ -220,9 +223,13 @@ async def add_to_watchlist_callback(update: Update, context: ContextTypes.DEFAUL
         details = get_tv_show_details(item_id)
         title = details['name']
 
-    # 假设你有一个 add_to_watchlist 函数在 database 模块中
-    add_to_watchlist(user_id, item_id, item_type,title)
-    await query.message.reply_text(f"已将 {title} 添加到你的观看列表！")
+    # 检查项目是否已经在观看列表中
+    if is_in_watchlist(user_id, item_id, item_type):
+        await query.message.reply_text(f"{title} 已经在你的观看列表中！")
+    else:
+        # 假设你有一个 add_to_watchlist 函数在 database 模块中
+        add_to_watchlist(user_id, item_id, item_type, title)
+        await query.message.reply_text(f"已将 {title} 添加到你的观看列表！")
 
     # 更新按钮状态
     keyboard = [
@@ -259,25 +266,81 @@ async def back_to_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     else:
         await query.message.reply_text("无法返回上一次搜索结果。请尝试新的搜索。")
 
+
 async def trending_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handler for the /trending command."""
-    time_window = context.args[0] if context.args and context.args[0] in ['day', 'week'] else 'day'
+    time_window = context.args[0] if context.args and context.args[0] in ['day', 'week'] else 'week'
     trending_items = get_trending_items(time_window)
 
     # 分别获取电影和电视剧
     movies = [item for item in trending_items if item['item_type'] == 'movie'][:5]
     tv_shows = [item for item in trending_items if item['item_type'] == 'tv'][:5]
 
+    # 获取排名最高的电影
+    top_movie = movies[0]
+    top_movie_poster_url = f"{top_movie['poster_url']}"
+
+    # 获取当前日期
+    from datetime import datetime
+    current_date = datetime.now().strftime("%Y-%m-%d")
+
     # 创建消息
-    message = "🎬 *Trending Movies:*\n"
+    message = f"📅 *Date:* {current_date}\n"
+    message += f"📊 *Trending:* {time_window.capitalize()}\n"
+    message += "🔗 *GitHub:* [SimonGino/tg-bot-tmdb](https://github.com/SimonGino/tg-bot-tmdb)\n\n"
+
+    # 创建消息
+    message += "🎬 *Trending Movies:*\n"
     for idx, movie in enumerate(movies, start=1):
-        message += f"{idx}. *{movie['title']}* ({movie['release_date']})\n"
+        message += f"{idx}. [{movie['title']}] 评分: {movie['vote_average']}\n"
 
     message += "\n📺 *Trending TV Shows:*\n"
     for idx, tv_show in enumerate(tv_shows, start=1):
-        message += f"{idx}. *{tv_show['name']}* ({tv_show['first_air_date']})\n"
+        message += f"{idx}. [{tv_show['name']}] 评分: {tv_show['vote_average']}\n"
 
-    await update.message.reply_text(message, parse_mode=ParseMode.MARKDOWN)
+    if top_movie_poster_url:
+        await update.message.reply_photo(photo=top_movie_poster_url, caption=message, parse_mode=ParseMode.MARKDOWN)
+    else:
+        await update.message.reply_text(message, parse_mode=ParseMode.MARKDOWN)
 
 
+async def send_weekly_trending(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Scheduled task to send weekly trending movies and TV shows to all subscribers."""
+    time_window = 'week'
+    trending_items = get_trending_items(time_window)
 
+    # 分别获取电影和电视剧
+    movies = [item for item in trending_items if item['item_type'] == 'movie'][:5]
+    tv_shows = [item for item in trending_items if item['item_type'] == 'tv'][:5]
+
+    # 获取排名最高的电影
+    top_movie = movies[0]
+    top_movie_poster_url = f"{top_movie['poster_url']}"
+
+    # 获取当前日期
+    from datetime import datetime
+    current_date = datetime.now().strftime("%Y-%m-%d")
+
+    # 创建消息
+    message = f"📅 *Date:* {current_date}\n"
+    message += f"📊 *Trending:* {time_window.capitalize()}\n"
+    message += "🔗 *GitHub:* [SimonGino/tg-bot-tmdb](https://github.com/SimonGino/tg-bot-tmdb)\n\n"
+
+    message += "🎬 *Trending Movies:*\n"
+    for idx, movie in enumerate(movies, start=1):
+        message += f"{idx}. [{movie['title']}] 评分: {movie['vote_average']}\n"
+
+    message += "\n📺 *Trending TV Shows:*\n"
+    for idx, tv_show in enumerate(tv_shows, start=1):
+        message += f"{idx}. [{tv_show['name']}] 评分: {tv_show['vote_average']}\n"
+
+    # 获取所有订阅者的 Chat ID
+    user_chat_ids = get_all_subscribers()
+
+    # 发送消息给所有订阅者
+    for chat_id in user_chat_ids:
+        if top_movie_poster_url:
+            await context.bot.send_photo(chat_id=chat_id, photo=top_movie_poster_url, caption=message,
+                                         parse_mode=ParseMode.MARKDOWN)
+        else:
+            await context.bot.send_message(chat_id=chat_id, text=message, parse_mode=ParseMode.MARKDOWN)

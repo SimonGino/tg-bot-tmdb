@@ -24,6 +24,23 @@ class WatchlistItem(Base):
 
 Base.metadata.create_all(engine)
 
+def is_in_watchlist(user_id: int, item_id: int, item_type: str) -> bool:
+    """
+        Check if an item is already in the user's watchlist.
+
+        :param user_id: Telegram user ID
+        :param item_id: TMDB movie or TV show ID
+        :param item_type: 'movie' or 'tv'
+        :return: True if the item is in the watchlist, False otherwise
+        """
+    session = Session()
+    item = session.query(WatchlistItem).filter_by(
+        user_id=user_id,
+        item_id=item_id,
+        item_type=item_type
+    ).first()
+    session.close()
+    return item is not None
 
 def add_to_watchlist(user_id: int, item_id: int, item_type: str, title: str) -> None:
     """

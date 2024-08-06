@@ -94,6 +94,12 @@ def search_tv_shows(query: str) -> List[Dict[str, Any]]:
     response = requests.get(url, headers=HEADERS, params=params)
     response.raise_for_status()
     data = response.json()
+    results = data.get("results", [])
+    for movie in results:
+        if movie['poster_path']:
+            movie['poster_url'] = f"{IMAGE_BASE_URL}{movie['poster_path']}"
+        else:
+            movie['poster_url'] = None
     return data.get("results", [])
 
 
@@ -108,5 +114,32 @@ def get_tv_show_details(tv_id: int) -> Dict[str, Any]:
     params = {"language": "zh-CN"}
     response = requests.get(url, headers=HEADERS, params=params)
     response.raise_for_status()
-    return response.json()
+    movie = response.json()
+    if movie['poster_path']:
+        movie['poster_url'] = f"{IMAGE_BASE_URL}{movie['poster_path']}"
+    else:
+        movie['poster_url'] = None
+    return movie
 
+
+def get_trending_items(time_window: str = "day") -> List[Dict[str, Any]]:
+    """
+    Get trending movies and TV shows for the day or week.
+
+    :param time_window: 'day' or 'week'
+    :return: List of trending movies and TV shows
+    """
+    movies = get_trending_movies(time_window)
+    tv_shows = get_trending_tv_shows(time_window)
+
+    # 组合 movies 和 tv_shows
+    trending_items = movies + tv_shows
+
+    # 添加 item_type 字段以便区分是电影还是电视剧
+    for item in trending_items:
+        if 'title' in item:
+            item['item_type'] = 'movie'
+        elif 'name' in item:
+            item['item_type'] = 'tv'
+
+    return trending_items

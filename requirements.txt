@@ -1,2 +1,4 @@
-telegram~=0.0.1
 SQLAlchemy~=2.0.32
+python-telegram-bot==21.4
+requests==2.32.3
+python-dotenv==1.0.1
